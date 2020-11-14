@@ -104,7 +104,7 @@ const useClapAnimation = ({
 const MediumClapContext = createContext();
 const { Provider } = MediumClapContext;
 
-const MediumClap = ({ children, onClap, className }) => {
+const MediumClap = ({ children, onClap, className, values }) => {
     const [clapState, setClapState] = useState(initialState);
     const [{ clapRef, clapCountRef, countTotalRef }, setRefsState] = useState({});
 
@@ -121,29 +121,33 @@ const MediumClap = ({ children, onClap, className }) => {
         countTotalEl: countTotalRef
     })
 
+    const isControlled = useMemo(() => !!values && onClap, [values, onClap]);
+
     const handleClapClick = () => {
         animationTimeLne.replay();
-        setClapState(({ count, countTotal }) => ({
-            count: Math.min(MAX_USER_CLAP + initialState.count, count + 1),
-            countTotal: Math.min(MAX_USER_CLAP + initialState.countTotal, countTotal + 1),
-            isClicked: true
-        }));
+        isControlled ? onClap(clapState) :
+            setClapState(({ count, countTotal }) => ({
+                count: Math.min(MAX_USER_CLAP + initialState.count, count + 1),
+                countTotal: Math.min(MAX_USER_CLAP + initialState.countTotal, countTotal + 1),
+                isClicked: true
+            }));
     }
+
     // useEffect Will not be called on mount 
     const componentFirstMount = useRef(false);
     useEffect(function () {
-        if (componentFirstMount.current) {
+        if (componentFirstMount.current && !isControlled) {
             onClap(clapState)
         }
         componentFirstMount.current = true
-    }, [clapState.count]);
+    }, [clapState.count, onClap, isControlled]);
 
-    // useEffect Will be called on mount    
-    // useEffect(function () {
-    //     onClap(clapState)
-    // }, [clapState.count]);
 
-    const memoizedValue = useMemo(() => ({ ...clapState, setRef }), [clapState, setRef]);
+    const getState = useCallback(() =>
+        isControlled ? values : clapState,
+        [isControlled, values, clapState]);
+
+    const memoizedValue = useMemo(() => ({ ...getState(), setRef }), [getState, setRef]);
     const classNames = useMemo(() => [styles.clap, className].join(' ').trim(), [className]);
     return <Provider value={memoizedValue}>
         <button ref={setRef}
@@ -201,19 +205,29 @@ MediumClap.Total = CountTotal;
 
 const Usage = () => {
     const [count, setCount] = useState(0);
+    const [clapState, setClapState] = useState(initialState);
 
     const handleClap = useCallback(function (clapState) {
-        setCount(clapState.count)
+        setClapState(({ count, countTotal }) => ({
+            count: Math.min(MAX_USER_CLAP + initialState.count, count + 1),
+            countTotal: Math.min(MAX_USER_CLAP + initialState.countTotal, countTotal + 1),
+            isClicked: true
+        }));
     });
 
     return <div>
-        <MediumClap onClap={handleClap} className={userStyles.clap}>
+        <MediumClap values={clapState} onClap={handleClap}>
             <MediumClap.Icon />
-            <MediumClap.Count className={userStyles.count} />
-            <MediumClap.Total className={userStyles.total} />
+            <MediumClap.Count />
+            <MediumClap.Total />
+        </MediumClap>
+        <MediumClap values={clapState} onClap={handleClap}>
+            <MediumClap.Icon />
+            <MediumClap.Count />
+            <MediumClap.Total />
         </MediumClap>
         <br /><br />
-        <div>You have clapped {count} times.</div>
+        <div>You have clapped {clapState.count} times.</div>
     </div >
 }
 
